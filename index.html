@@ -1,59 +1,140 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>QR Code Scanner</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #reader {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #result {
+            margin: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f5f5f5;
+            min-height: 50px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #camera-select {
+            margin: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .status {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
 </head>
-<body data-rsssl=1>
+<body>
+    <h1>QR/Barcode Scanner</h1>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js"
-        integrity="sha512-k/KAe4Yff9EUdYI5/IAHlwUswqeipP+Cp5qnrsUjTPCgl51La2/JhyyjNciztD7mWNKLSXci48m7cctATKfLlQ=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<style>
-    main {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
+    <select id="camera-select">
+        <option value="">Loading cameras...</option>
+    </select>
 
-    #reader {
-        width: 600px;
-    }
+    <div>
+        <button id="start-button">Start Scanning</button>
+        <button id="stop-button" disabled>Stop Scanning</button>
+    </div>
 
-    #result {
-        text-align: center;
-        font-size: 1.5rem;
-    }
-</style>
-<main>
     <div id="reader"></div>
-    <div id="result"></div>
-</main>
-<script>
-    const scanner = new Html5QrcodeScanner('reader', {
-        qrbox: {
-            width: 250,
-            height: 250,
-        },
-        fps: 20,
-    });
-    scanner.render(success, error);
+    <div id="result">Scan Result: <span class="status">No scan yet</span></div>
 
-    function success(result) {
-        document.getElementById('result').innerHTML = `
-<h2>Success!</h2>
-<p><a href="${result}">${result}</a></p>
-`;
-        scanner.clear();
-        document.getElementById('reader').remove();
-    }
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const cameraSelect = document.getElementById('camera-select');
+        const resultDiv = document.getElementById('result');
 
-    function error(err) {
-        console.error(err);
-    }
-</script>
+        // Get and populate camera list
+        Html5Qrcode.getCameras().then(devices => {
+            cameraSelect.innerHTML = devices.map(device =>
+                `<option value="${device.id}">${device.label}</option>`
+            ).join('');
+        }).catch(err => {
+            console.error('Error getting cameras', err);
+            cameraSelect.innerHTML = '<option value="">No cameras found</option>';
+        });
 
+        let isScanning = false;
+
+        startButton.addEventListener('click', () => {
+            const cameraId = cameraSelect.value;
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            };
+
+            html5QrCode.start(
+                cameraId,
+                config,
+                (decodedText, decodedResult) => {
+                    // On successful scan
+                    resultDiv.innerHTML = `Scan Result: ${decodedText}`;
+                    console.log('Scan result:', decodedResult);
+                },
+                (errorMessage) => {
+                    // On error
+                    console.warn(`Code scan error = ${errorMessage}`);
+                }
+            ).then(() => {
+                isScanning = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            }).catch((err) => {
+                console.error('Error starting scanner:', err);
+                alert('Error starting scanner. Please check camera permissions.');
+            });
+        });
+
+        stopButton.addEventListener('click', () => {
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                resultDiv.innerHTML = 'Scan Result: <span class="status">Scanner stopped</span>';
+            }).catch((err) => {
+                console.error('Error stopping scanner:', err);
+            });
+        });
+    </script>
 </body>
 </html>
