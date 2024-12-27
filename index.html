@@ -1,118 +1,144 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Optimized ZXing Barcode Scanner</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="ZXing for JS">
+
+  <title>ZXing TypeScript | Improved Barcode Scanner</title>
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+  <link rel="stylesheet" href="https://unpkg.com/normalize.css@8.0.0/normalize.css">
+  <link rel="stylesheet" href="https://unpkg.com/milligram@1.3.0/dist/milligram.min.css">
+  <style>
+    video {
+      width: 400px;
+      height: 300px;
+      border: 1px solid gray;
+      transform: scale(1.2); / Apply zoom effect /
+    }
+  </style>
 </head>
+
 <body>
-    <div>
-        <button id="startButton">Start</button>
-        <button id="resetButton">Reset</button>
-    </div>
-    
-    <div>
-        <video id="video" width="300" height="200" style="border: 1px solid gray"></video>
-    </div>
-    
-    <div id="sourceSelectPanel" style="display:none">
-        <label for="sourceSelect">Camera:</label>
-        <select id="sourceSelect"></select>
-    </div>
 
-    <div>
-        <label>Result:</label>
-        <pre><code id="result"></code></pre>
-    </div>
+  <main class="wrapper" style="padding-top:2em">
 
-    <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
-    <script>
-        window.addEventListener('load', function () {
-            let selectedDeviceId;
-            let lastResult = null;
-            let lastCheck = Date.now();
-            
-            // Create hints object for optimization
-            const hints = new Map();
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                ZXing.BarcodeFormat.QR_CODE,
-                ZXing.BarcodeFormat.EAN_13,
-                ZXing.BarcodeFormat.CODE_128
-                // Add only the formats you need
-            ]);
-            hints.set(ZXing.DecodeHintType.TRY_HARDER, false); // Faster but less accurate
-            hints.set(ZXing.DecodeHintType.ASSUME_GS1, false); // Disable if not needed
+    <section class="container" id="demo-content">
+      <h1 class="title">Enhanced Barcode Scanner</h1>
 
-            // Initialize with hints
-            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
+      <p>
+        <a class="button-small button-outline" href="../../index.html">HOME 🏡</a>
+      </p>
 
-            // Configure optimal settings
-            const constraints = {
-                video: {
-                    facingMode: "environment",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 30 }
-                }
+      <p>Scan 1D/2D codes more effectively with zoom and improved speed. Select the video source if multiple devices are available.</p>
+
+      <div>
+        <a class="button" id="startButton">Start</a>
+        <a class="button" id="resetButton">Reset</a>
+      </div>
+
+      <div>
+        <video id="video" autoplay></video>
+      </div>
+
+      <div id="sourceSelectPanel" style="display:none">
+        <label for="sourceSelect">Change video source:</label>
+        <select id="sourceSelect" style="max-width:400px"></select>
+      </div>
+
+      <label>Result:</label>
+      <pre><code id="result"></code></pre>
+
+      <p>See the <a href="https://github.com/zxing-js/library/tree/master/docs/examples/multi-camera/">source code</a>
+        for this example.</p>
+    </section>
+
+    <footer class="footer">
+      <section class="container">
+        <p>ZXing TypeScript Demo. Licensed under the <a target="_blank"
+            href="https://github.com/zxing-js/library#license" title="MIT">MIT</a>.</p>
+      </section>
+    </footer>
+
+  </main>
+
+  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      let selectedDeviceId;
+      const codeReader = new ZXing.BrowserMultiFormatReader({ tryHarder: true });
+      console.log('ZXing code reader initialized');
+
+      codeReader.listVideoInputDevices()
+        .then((videoInputDevices) => {
+          const sourceSelect = document.getElementById('sourceSelect');
+          selectedDeviceId = videoInputDevices[0].deviceId;
+
+          if (videoInputDevices.length >= 1) {
+            videoInputDevices.forEach((element) => {
+              const sourceOption = document.createElement('option');
+              sourceOption.text = element.label;
+              sourceOption.value = element.deviceId;
+              sourceSelect.appendChild(sourceOption);
+            });
+
+            sourceSelect.onchange = () => {
+              selectedDeviceId = sourceSelect.value;
             };
 
-            // Set up device selection
-            codeReader.listVideoInputDevices()
-                .then((videoInputDevices) => {
-                    const sourceSelect = document.getElementById('sourceSelect');
-                    selectedDeviceId = videoInputDevices[0].deviceId;
-                    
-                    if (videoInputDevices.length > 1) {
-                        videoInputDevices.forEach((element) => {
-                            const sourceOption = document.createElement('option');
-                            sourceOption.text = element.label;
-                            sourceOption.value = element.deviceId;
-                            sourceSelect.appendChild(sourceOption);
-                        });
+            const sourceSelectPanel = document.getElementById('sourceSelectPanel');
+            sourceSelectPanel.style.display = 'block';
+          }
 
-                        sourceSelect.onchange = () => selectedDeviceId = sourceSelect.value;
-                        document.getElementById('sourceSelectPanel').style.display = 'block';
-                    }
+          document.getElementById('startButton').addEventListener('click', () => {
+            const videoElement = document.getElementById('video');
+            const constraints = {
+              video: {
+                deviceId: { exact: selectedDeviceId },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                zoom: true // Enables zoom capability
+              }
+            };
 
-                    // Improved start scanning function
-                    document.getElementById('startButton').addEventListener('click', () => {
-                        constraints.video.deviceId = selectedDeviceId;
-                        
-                        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
-                            const now = Date.now();
-                            
-                            // Implement debouncing (only process every 100ms)
-                            if (now - lastCheck < 100) {
-                                return;
-                            }
-                            lastCheck = now;
+            navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+              videoElement.srcObject = stream;
+              codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                if (result) {
+                  console.log(result);
+                  document.getElementById('result').textContent = result.text;
+                }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                  console.error(err);
+                  document.getElementById('result').textContent = err;
+                }
+              });
+            }).catch(err => {
+              console.error('Error accessing camera:', err);
+            });
 
-                            if (result) {
-                                // Prevent duplicate scans
-                                if (lastResult !== result.text) {
-                                    lastResult = result.text;
-                                    console.log(result);
-                                    document.getElementById('result').textContent = result.text;
-                                    
-                                    // Optional: Add success feedback
-                                    navigator.vibrate && navigator.vibrate(100);
-                                }
-                            }
-                            
-                            if (err && !(err instanceof ZXing.NotFoundException)) {
-                                console.error(err);
-                            }
-                        }, constraints);
-                    });
+            console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
+          });
 
-                    document.getElementById('resetButton').addEventListener('click', () => {
-                        codeReader.reset();
-                        document.getElementById('result').textContent = '';
-                        lastResult = null;
-                    });
-                })
-                .catch(err => console.error(err));
+          document.getElementById('resetButton').addEventListener('click', () => {
+            codeReader.reset();
+            const videoElement = document.getElementById('video');
+            if (videoElement.srcObject) {
+              videoElement.srcObject.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('result').textContent = '';
+            console.log('Reset.');
+          });
+
+        })
+        .catch((err) => {
+          console.error(err);
         });
-    </script>
+    });
+  </script>
+
 </body>
+
 </html>
