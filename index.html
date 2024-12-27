@@ -1,144 +1,194 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="author" content="ZXing for JS">
-
-  <title>ZXing TypeScript | Improved Barcode Scanner</title>
-
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
-  <link rel="stylesheet" href="https://unpkg.com/normalize.css@8.0.0/normalize.css">
-  <link rel="stylesheet" href="https://unpkg.com/milligram@1.3.0/dist/milligram.min.css">
-  <style>
-    video {
-      width: 400px;
-      height: 300px;
-      border: 1px solid gray;
-      transform: scale(1.2); / Apply zoom effect /
-    }
-  </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="ZXing for JS">
+    <title>Enhanced ZXing Scanner with Zoom</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+    <link rel="stylesheet" href="https://unpkg.com/normalize.css@8.0.0/normalize.css">
+    <link rel="stylesheet" href="https://unpkg.com/milligram@1.3.0/dist/milligram.min.css">
+    <style>
+        .camera-container {
+            position: relative;
+            width: 300px;
+            margin: 0 auto;
+        }
+        #video {
+            width: 100%;
+            height: 200px;
+            border: 2px solid #666;
+            border-radius: 4px;
+        }
+        #zoomView {
+            position: absolute;
+            right: -120px;
+            top: 0;
+            width: 100px;
+            height: 100px;
+            border: 2px solid #666;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .scanning-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background-color: red;
+            animation: scan 2s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .zoom-controls {
+            margin: 10px 0;
+        }
+        #zoomLevel {
+            width: 100px;
+            margin: 0 10px;
+        }
+    </style>
 </head>
-
 <body>
+    <main class="wrapper" style="padding-top:2em">
+        <section class="container" id="demo-content">
+            <h1 class="title">Enhanced Barcode Scanner</h1>
 
-  <main class="wrapper" style="padding-top:2em">
+            <div class="controls">
+                <a class="button" id="startButton">Start</a>
+                <a class="button" id="resetButton">Reset</a>
+            </div>
 
-    <section class="container" id="demo-content">
-      <h1 class="title">Enhanced Barcode Scanner</h1>
+            <div class="zoom-controls">
+                <label>Zoom Level: </label>
+                <input type="range" id="zoomLevel" min="1" max="10" value="1">
+                <span id="zoomValue">1x</span>
+            </div>
 
-      <p>
-        <a class="button-small button-outline" href="../../index.html">HOME 🏡</a>
-      </p>
+            <div class="camera-container">
+                <video id="video"></video>
+                <canvas id="zoomView"></canvas>
+                <div class="scanning-line"></div>
+            </div>
 
-      <p>Scan 1D/2D codes more effectively with zoom and improved speed. Select the video source if multiple devices are available.</p>
+            <div id="sourceSelectPanel" style="display:none">
+                <label for="sourceSelect">Camera Source:</label>
+                <select id="sourceSelect"></select>
+            </div>
 
-      <div>
-        <a class="button" id="startButton">Start</a>
-        <a class="button" id="resetButton">Reset</a>
-      </div>
+            <div>
+                <label>Last Scan:</label>
+                <pre><code id="result"></code></pre>
+            </div>
+        </section>
+    </main>
 
-      <div>
-        <video id="video" autoplay></video>
-      </div>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <script>
+        window.addEventListener('load', function () {
+            let selectedDeviceId;
+            let videoElement = document.getElementById('video');
+            let zoomCanvas = document.getElementById('zoomView');
+            let zoomCtx = zoomCanvas.getContext('2d');
+            let zoomLevel = document.getElementById('zoomLevel');
+            let zoomValue = document.getElementById('zoomValue');
 
-      <div id="sourceSelectPanel" style="display:none">
-        <label for="sourceSelect">Change video source:</label>
-        <select id="sourceSelect" style="max-width:400px"></select>
-      </div>
+            // Set initial canvas size
+            zoomCanvas.width = 100;
+            zoomCanvas.height = 100;
 
-      <label>Result:</label>
-      <pre><code id="result"></code></pre>
+            // Initialize ZXing with optimized settings
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+            hints.set(ZXing.DecodeHintType.ASSUME_GS1, false);
 
-      <p>See the <a href="https://github.com/zxing-js/library/tree/master/docs/examples/multi-camera/">source code</a>
-        for this example.</p>
-    </section>
+            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
-    <footer class="footer">
-      <section class="container">
-        <p>ZXing TypeScript Demo. Licensed under the <a target="_blank"
-            href="https://github.com/zxing-js/library#license" title="MIT">MIT</a>.</p>
-      </section>
-    </footer>
+            // Zoom view update function
+            function updateZoomView() {
+                if (videoElement.videoWidth === 0) return;
 
-  </main>
+                const zoom = parseInt(zoomLevel.value);
+                zoomValue.textContent = zoom + 'x';
 
-  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
-  <script>
-    window.addEventListener('load', function () {
-      let selectedDeviceId;
-      const codeReader = new ZXing.BrowserMultiFormatReader({ tryHarder: true });
-      console.log('ZXing code reader initialized');
+                // Calculate center position
+                const centerX = videoElement.videoWidth / 2;
+                const centerY = videoElement.videoHeight / 2;
 
-      codeReader.listVideoInputDevices()
-        .then((videoInputDevices) => {
-          const sourceSelect = document.getElementById('sourceSelect');
-          selectedDeviceId = videoInputDevices[0].deviceId;
+                // Calculate source dimensions based on zoom
+                const sourceWidth = videoElement.videoWidth / zoom;
+                const sourceHeight = videoElement.videoHeight / zoom;
 
-          if (videoInputDevices.length >= 1) {
-            videoInputDevices.forEach((element) => {
-              const sourceOption = document.createElement('option');
-              sourceOption.text = element.label;
-              sourceOption.value = element.deviceId;
-              sourceSelect.appendChild(sourceOption);
-            });
+                // Draw zoomed portion
+                zoomCtx.drawImage(
+                    videoElement,
+                    centerX - sourceWidth / 2,
+                    centerY - sourceHeight / 2,
+                    sourceWidth,
+                    sourceHeight,
+                    0,
+                    0,
+                    zoomCanvas.width,
+                    zoomCanvas.height
+                );
 
-            sourceSelect.onchange = () => {
-              selectedDeviceId = sourceSelect.value;
-            };
-
-            const sourceSelectPanel = document.getElementById('sourceSelectPanel');
-            sourceSelectPanel.style.display = 'block';
-          }
-
-          document.getElementById('startButton').addEventListener('click', () => {
-            const videoElement = document.getElementById('video');
-            const constraints = {
-              video: {
-                deviceId: { exact: selectedDeviceId },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                zoom: true // Enables zoom capability
-              }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints).then(stream => {
-              videoElement.srcObject = stream;
-              codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
-                if (result) {
-                  console.log(result);
-                  document.getElementById('result').textContent = result.text;
-                }
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                  console.error(err);
-                  document.getElementById('result').textContent = err;
-                }
-              });
-            }).catch(err => {
-              console.error('Error accessing camera:', err);
-            });
-
-            console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
-          });
-
-          document.getElementById('resetButton').addEventListener('click', () => {
-            codeReader.reset();
-            const videoElement = document.getElementById('video');
-            if (videoElement.srcObject) {
-              videoElement.srcObject.getTracks().forEach(track => track.stop());
+                requestAnimationFrame(updateZoomView);
             }
-            document.getElementById('result').textContent = '';
-            console.log('Reset.');
-          });
 
-        })
-        .catch((err) => {
-          console.error(err);
+            // Handle camera devices
+            codeReader.listVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const sourceSelect = document.getElementById('sourceSelect');
+                    selectedDeviceId = videoInputDevices[0].deviceId;
+
+                    if (videoInputDevices.length > 1) {
+                        videoInputDevices.forEach((device) => {
+                            const option = document.createElement('option');
+                            option.text = device.label;
+                            option.value = device.deviceId;
+                            sourceSelect.appendChild(option);
+                        });
+
+                        sourceSelect.onchange = () => {
+                            selectedDeviceId = sourceSelect.value;
+                        };
+
+                        document.getElementById('sourceSelectPanel').style.display = 'block';
+                    }
+
+                    // Start button handler
+                    document.getElementById('startButton').addEventListener('click', () => {
+                        // Start video stream
+                        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                            if (result) {
+                                document.getElementById('result').textContent = result.text;
+                                // Optional: Add sound feedback
+                                new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdYiXmp2cmJKKhX+Agnes6LSQwJC9X+37die7QP1hsGMAaI0MAf7fYTgZYwCXA0DvKr8freed4yQjhwIPYTM0RE+UgnM+y/pmuNUC0pt4jxhv9p8sGlwXzrdSi6Nz7UfW+wW+p7djXWv2B9Pj0IvJ04iLX7s8F6/LLE9o8wrm5/OtS2YHH3dPi2jXsfd9H/5EImxhcM907jRp3IN8asCOxLGst8jQ4N4Q1djP3NNs3oTs0RktZXGh1dWJyNWADVORnG4IGjpyjvaG3srO6r8DLpbWV0nmz/l90Ry8ZJADkw+itqcTu0QC6VqOAz/L0tfiX9P3xfPL19Fn08PEs8OLr3uS23mfUuclhy+LZp+C36SPwt/Vp+gsA4QSOCcQJMQezAkkAMwRnDXsTyxxGJOIpOy0/I3EW1RLFFbYdyCgRN4FEF0leRtRB3joGNAcxXTHpMzE1cTXiM04w8irCJJsbvBI3C4HDm7qkuO3BwNPX12vWg9PF0IfPHeqb/u8F8PcR42LQ3dNi57n0yP7YA5gHgAkg/eHzU+2B6+fhBdLBxCTHC9AR2vHgY+p89h4CmQb3CSQGdf7p9Y/thOmz7dfxYfNn8Sz0tPlc/8EEWwwQFBIaCRv0FnUSiRCQDp4QzBMHGDYcTR/fIQcjpyGCHi8bphi+FXYSVg/xC0AIhgWeAzwFXAgdDGUP3hHCEomRBYwHhqiAKno8buhp8GkSbM5v93LGdM91MnY6dTJ0dnOFcnpw720LbNBq0mmnaBRnp2XyY5xiUWScYhBh7mGMYkljSmTJZRtnDmurbn9xP3TodSJ3VHhveDJ4zHcid0h2V3VddGJzeXKicbhw9G7qa4xoKmbwYcVeK17MXs1f02DRYYBhImEEYDhf8V4QXy1fRF+Qip+Pl5aMmYeciZuFm5OZlJh5l0eWjpXJlHyUlJO0kv6RcZL2koqT9pOIlOyUSJWqlfaVJ5ZAlheWupUnlX2U3JM3k82StZK4ktaS25L4kteS3ZIEk/uSGpM6k0uTYZOakxeUYpTSlHGV85WklluXCphKmKWYZpljmYyZ3pl3mlWb/JuUnCedyp1mnvKeip8RoKKgZaEVoo2iD6PNo4qkP6XhpZOmE6eVpyKotKhDqcCpg6oyq9mrpKxarSKuxK4wr4qvELBgsMWwMbGZsQ==').play();
+                            }
+                            if (err && !(err instanceof ZXing.NotFoundException)) {
+                                console.error(err);
+                                document.getElementById('result').textContent = err;
+                            }
+                        });
+
+                        // Start zoom view
+                        requestAnimationFrame(updateZoomView);
+                    });
+
+                    // Reset button handler
+                    document.getElementById('resetButton').addEventListener('click', () => {
+                        codeReader.reset();
+                        document.getElementById('result').textContent = '';
+                    });
+                })
+                .catch((err) => {
+                    console.error(err);
+                });
         });
-    });
-  </script>
-
+    </script>
 </body>
-
 </html>
