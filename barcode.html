@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Optimized ZXing Barcode Scanner</title>
+</head>
+<body>
+    <div>
+        <button id="startButton">Start</button>
+        <button id="resetButton">Reset</button>
+    </div>
+    
+    <div>
+        <video id="video" width="300" height="200" style="border: 1px solid gray"></video>
+    </div>
+    
+    <div id="sourceSelectPanel" style="display:none">
+        <label for="sourceSelect">Camera:</label>
+        <select id="sourceSelect"></select>
+    </div>
+
+    <div>
+        <label>Result:</label>
+        <pre><code id="result"></code></pre>
+    </div>
+
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <script>
+        window.addEventListener('load', function () {
+            let selectedDeviceId;
+            let lastResult = null;
+            let lastCheck = Date.now();
+            
+            // Create hints object for optimization
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.QR_CODE,
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.CODE_128
+                // Add only the formats you need
+            ]);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, false); // Faster but less accurate
+            hints.set(ZXing.DecodeHintType.ASSUME_GS1, false); // Disable if not needed
+
+            // Initialize with hints
+            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
+
+            // Configure optimal settings
+            const constraints = {
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30 }
+                }
+            };
+
+            // Set up device selection
+            codeReader.listVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const sourceSelect = document.getElementById('sourceSelect');
+                    selectedDeviceId = videoInputDevices[0].deviceId;
+                    
+                    if (videoInputDevices.length > 1) {
+                        videoInputDevices.forEach((element) => {
+                            const sourceOption = document.createElement('option');
+                            sourceOption.text = element.label;
+                            sourceOption.value = element.deviceId;
+                            sourceSelect.appendChild(sourceOption);
+                        });
+
+                        sourceSelect.onchange = () => selectedDeviceId = sourceSelect.value;
+                        document.getElementById('sourceSelectPanel').style.display = 'block';
+                    }
+
+                    // Improved start scanning function
+                    document.getElementById('startButton').addEventListener('click', () => {
+                        constraints.video.deviceId = selectedDeviceId;
+                        
+                        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                            const now = Date.now();
+                            
+                            // Implement debouncing (only process every 100ms)
+                            if (now - lastCheck < 100) {
+                                return;
+                            }
+                            lastCheck = now;
+
+                            if (result) {
+                                // Prevent duplicate scans
+                                if (lastResult !== result.text) {
+                                    lastResult = result.text;
+                                    console.log(result);
+                                    document.getElementById('result').textContent = result.text;
+                                    
+                                    // Optional: Add success feedback
+                                    navigator.vibrate && navigator.vibrate(100);
+                                }
+                            }
+                            
+                            if (err && !(err instanceof ZXing.NotFoundException)) {
+                                console.error(err);
+                            }
+                        }, constraints);
+                    });
+
+                    document.getElementById('resetButton').addEventListener('click', () => {
+                        codeReader.reset();
+                        document.getElementById('result').textContent = '';
+                        lastResult = null;
+                    });
+                })
+                .catch(err => console.error(err));
+        });
+    </script>
+</body>
+</html>
